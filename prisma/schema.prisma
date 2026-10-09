@@ -34,12 +34,13 @@ model Option {
 }
 
 model Attempt {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  score      Int
-  total      Int
-  passed     Boolean
-  profession String   @default("general")
-  createdAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  score        Int
+  total        Int
+  passed       Boolean
+  profession   String   @default("general")
+  employeeName String   @default("Сотрудник")
+  createdAt    DateTime @default(now())
 }

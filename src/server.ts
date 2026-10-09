@@ -51,10 +51,11 @@ async function start() {
 
   // Сохранить попытку
   app.post('/api/attempts', async (request: any, reply: any) => {
-    const { score, total, profession } = request.body as {
+    const { score, total, profession, employeeName } = request.body as {
       score?: number;
       total?: number;
       profession?: string;
+      employeeName?: string;
     };
 
     if (typeof score !== 'number' || typeof total !== 'number') {
@@ -77,13 +78,14 @@ async function start() {
         total,
         passed,
         profession: profession || 'general',
+        employeeName: employeeName || 'Сотрудник',
       },
     });
 
     return { ok: true, attemptId: attempt.id, percent, passed };
   });
 
-  // Статистика (с опциональным фильтром по профессии)
+  // Статистика (с фильтром по профессии)
   app.get('/api/stats', async (request: any) => {
     const { profession } = request.query as { profession?: string };
 
@@ -122,7 +124,7 @@ async function start() {
     });
   });
 
-  // Health-check (Render использует его для проверки, что сервер жив)
+  // Health-check
   app.get('/', async () => {
     return { ok: true, service: 'shtatkontrol-backend' };
   });
