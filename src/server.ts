@@ -11,7 +11,7 @@ const MANAGER_PASSWORD = '11111';
 async function start() {
   await app.register(cors, { origin: true });
 
-  // ─── Отдать вопросы (с isCorrect для подсветки на клиенте) ───
+  // ─── Отдать вопросы (с перемешиванием вариантов) ───
   app.get('/api/questions', async (request: any) => {
     const { profession, count } = request.query as {
       profession?: string;
@@ -31,8 +31,17 @@ async function start() {
       },
     });
 
+    // Перемешиваем вопросы
     const shuffled = all.sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, limit);
+    const picked = shuffled.slice(0, limit);
+
+    // Перемешиваем варианты ответа внутри каждого вопроса
+    const withShuffledOptions = picked.map(q => ({
+      ...q,
+      options: q.options.sort(() => Math.random() - 0.5),
+    }));
+
+    return withShuffledOptions;
   });
 
   // ─── Проверка пароля руководителя ───
