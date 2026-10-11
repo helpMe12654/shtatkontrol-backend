@@ -173,7 +173,7 @@ async function start() {
     return { ok: true, attemptId: attempt.id, percent, passed };
   });
 
-  // ─── Статистика (с фильтрами: profession + employeeName) ───
+  // ─── Статистика ───
   app.get('/api/stats', async (request: any) => {
     const { profession, employeeName } = request.query as {
       profession?: string;
@@ -197,7 +197,7 @@ async function start() {
     };
   });
 
-  // ─── Все попытки (фильтры + лимит) ───
+  // ─── Все попытки ───
   app.get('/api/attempts', async (request: any) => {
     const { profession, employeeName, limit } = request.query as {
       profession?: string;
@@ -221,7 +221,7 @@ async function start() {
     });
   });
 
-  // ─── Уникальные имена сотрудников (для выпадающего списка) ───
+  // ─── Уникальные сотрудники ───
   app.get('/api/employees', async () => {
     const attempts = await prisma.attempt.findMany({
       select: { employeeName: true },
@@ -229,33 +229,29 @@ async function start() {
       orderBy: { employeeName: 'asc' },
     });
 
-    return attempts.map(a => a.employeeName);
+    return attempts
+      .map(a => a.employeeName)
+      .filter(name => name && name !== 'Сотрудник');
   });
 
-  // ─── Рейтинг: топ-10 сотрудников по среднему проценту ───
+  // ─── Рейтинг по % успешных ───
   app.get('/api/rating', async () => {
     const attempts = await prisma.attempt.findMany({
       select: {
         employeeName: true,
-        score: true,
-        total: true,
         passed: true,
       },
     });
 
-    // Группируем по имени
-    const byName: Record<
-      string,
-      { attempts: number; passed: number; totalPercent: number }
-    > = {};
+    const byName: Record<string, { attempts: number; passed: number }> = {};
 
     for (const a of attempts) {
+      if (!a.employeeName || a.employeeName === 'Сотрудник') continue;
+
       if (!byName[a.employeeName]) {
-        byName[a.employeeName] = { attempts: 0, passed: 0, totalPercent: 0 };
+        byName[a.employeeName] = { attempts: 0, passed: 0 };
       }
-      const percent = a.total === 0 ? 0 : (a.score / a.total) * 100;
       byName[a.employeeName].attempts += 1;
-      byName[a.employeeName].totalPercent += percent;
       if (a.passed) byName[a.employeeName].passed += 1;
     }
 
@@ -263,11 +259,13 @@ async function start() {
       name,
       attempts: data.attempts,
       passed: data.passed,
-      avgPercent: Math.round(data.totalPercent / data.attempts),
+      successRate: Math.round((data.passed / data.attempts) * 100),
     }));
 
-    // Сортируем по среднему проценту
-    rating.sort((a, b) => b.avgPercent - a.avgPercent);
+    rating.sort((a, b) => {
+      if (b.successRate !== a.successRate) return b.successRate - a.successRate;
+      return b.attempts - a.attempts;
+    });
 
     return rating.slice(0, 10);
   });
