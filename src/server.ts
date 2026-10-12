@@ -7,6 +7,11 @@ const app = fastify({ logger: true });
 const prisma = new PrismaClient();
 
 const MANAGER_PASSWORD = '11111';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '22222';
+
+// Категории для валидации
+const CATEGORIES = ['Сервис', 'Санитария', 'Безопасность', 'Стандарты', 'Культура'];
+const PROFESSIONS = ['general', 'официант', 'повар', 'бармен', 'хостес', 'курьер', 'управляющий'];
 
 async function start() {
   await app.register(cors, { origin: true });
@@ -34,12 +39,30 @@ async function start() {
     const shuffled = all.sort(() => Math.random() - 0.5);
     const picked = shuffled.slice(0, limit);
 
-    const withShuffledOptions = picked.map(q => ({
+    return picked.map(q => ({
       ...q,
       options: q.options.sort(() => Math.random() - 0.5),
     }));
+  });
 
-    return withShuffledOptions;
+  // ─── ВСЕ вопросы для админки (полные, без перемешивания) ───
+  app.get('/api/admin/questions', async (request: any) => {
+    const { profession } = request.query as { profession?: string };
+
+    const where =
+      profession && profession !== 'all' ? { profession } : {};
+
+    const questions = await prisma.question.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        options: {
+          select: { id: true, text: true, isCorrect: true },
+        },
+      },
+    });
+
+    return questions;
   });
 
   // ─── Пароль руководителя ───
@@ -51,6 +74,21 @@ async function start() {
     }
 
     if (password === MANAGER_PASSWORD) {
+      return { ok: true };
+    }
+
+    return reply.code(401).send({ ok: false, error: 'Неверный пароль' });
+  });
+
+  // ─── Пароль админа ───
+  app.post('/api/login-admin', async (request: any, reply: any) => {
+    const { password } = request.body as { password?: string };
+
+    if (!password) {
+      return reply.code(400).send({ error: 'Пароль не указан' });
+    }
+
+    if (password === ADMIN_PASSWORD) {
       return { ok: true };
     }
 
@@ -129,12 +167,133 @@ async function start() {
 
     return {
       ok: true,
-      user: {
-        id: user.id,
-        name: fullName,
-        username: username,
-      },
+      user: { id: user.id, name: fullName, username },
     };
+  });
+
+  // ─── Создать вопрос ───
+  app.post('/api/questions', async (request: any, reply: any) => {
+    const { text, profession, category, options } = request.body as {
+      text?: string;
+      profession?: string;
+      category?: string;
+      options?: { text: string; isCorrect: boolean }[];
+    };
+
+    if (!text || !profession || !category || !options || options.length < 3) {
+      return reply.code(400).send({ error: 'Заполнены не все поля' });
+    }
+
+    if (!PROFESSIONS.includes(profession)) {
+      return reply.code(400).send({ error: 'Неверная профессия' });
+    }
+
+    if (!CATEGORIES.includes(category)) {
+      return reply.code(400).send({ error: 'Неверная категория' });
+    }
+
+    const correctCount = options.filter(o => o.isCorrect).length;
+    if (correctCount !== 1) {
+      return reply.code(400).send({ error: 'Должен быть ровно 1 правильный ответ' });
+    }
+
+    const question = await prisma.question.create({
+      data: {
+        text,
+        profession,
+        category,
+        options: { create: options },
+      },
+      include: {
+        options: { select: { id: true, text: true, isCorrect: true } },
+      },
+    });
+
+    return question;
+  });
+
+  // ─── Обновить вопрос ───
+  app.put('/api/questions/:id', async (request: any, reply: any) => {
+    const { id } = request.params as { id: string };
+    const { text, profession, category, options } = request.body as {
+      text?: string;
+      profession?: string;
+      category?: string;
+      options?: { text: string; isCorrect: boolean }[];
+    };
+
+    if (!text || !profession || !category || !options || options.length < 3) {
+      return reply.code(400).send({ error: 'Заполнены не все поля' });
+    }
+
+    if (!PROFESSIONS.includes(profession)) {
+      return reply.code(400).send({ error: 'Неверная профессия' });
+    }
+
+    if (!CATEGORIES.includes(category)) {
+      return reply.code(400).send({ error: 'Неверная категория' });
+    }
+
+    const correctCount = options.filter(o => o.isCorrect).length;
+    if (correctCount !== 1) {
+      return reply.code(400).send({ error: 'Должен быть ровно 1 правильный ответ' });
+    }
+
+    // Удаляем старые варианты и создаём новые
+    await prisma.option.deleteMany({ where: { questionId: id } });
+
+    const question = await prisma.question.update({
+      where: { id },
+      data: {
+        text,
+        profession,
+        category,
+        options: { create: options },
+      },
+      include: {
+        options: { select: { id: true, text: true, isCorrect: true } },
+      },
+    });
+
+    return question;
+  });
+
+  // ─── Быстрая смена правильного ответа ───
+  app.patch('/api/questions/:id/correct', async (request: any, reply: any) => {
+    const { id } = request.params as { id: string };
+    const { optionId } = request.body as { optionId?: string };
+
+    if (!optionId) {
+      return reply.code(400).send({ error: 'optionId обязателен' });
+    }
+
+    // Проверяем, что вариант принадлежит этому вопросу
+    const option = await prisma.option.findUnique({ where: { id: optionId } });
+    if (!option || option.questionId !== id) {
+      return reply.code(400).send({ error: 'Неверный вариант' });
+    }
+
+    // Снимаем правильность со всех вариантов вопроса
+    await prisma.option.updateMany({
+      where: { questionId: id },
+      data: { isCorrect: false },
+    });
+
+    // Ставим правильность на выбранный
+    await prisma.option.update({
+      where: { id: optionId },
+      data: { isCorrect: true },
+    });
+
+    return { ok: true };
+  });
+
+  // ─── Удалить вопрос ───
+  app.delete('/api/questions/:id', async (request: any, reply: any) => {
+    const { id } = request.params as { id: string };
+
+    await prisma.question.delete({ where: { id } });
+    return { ok: true };
   });
 
   // ─── Сохранить попытку ───
@@ -215,10 +374,22 @@ async function start() {
       where,
       take,
       orderBy: { createdAt: 'desc' },
-      include: {
-        user: { select: { name: true, email: true } },
-      },
+      include: { user: { select: { name: true, email: true } } },
     });
+  });
+
+  // ─── Удалить одну попытку ───
+  app.delete('/api/attempts/:id', async (request: any, reply: any) => {
+    const { id } = request.params as { id: string };
+
+    await prisma.attempt.delete({ where: { id } });
+    return { ok: true };
+  });
+
+  // ─── Удалить ВСЕ попытки ───
+  app.delete('/api/attempts', async () => {
+    await prisma.attempt.deleteMany();
+    return { ok: true };
   });
 
   // ─── Уникальные сотрудники ───
@@ -234,13 +405,10 @@ async function start() {
       .filter(name => name && name !== 'Сотрудник');
   });
 
-  // ─── Рейтинг по % успешных ───
+  // ─── Рейтинг ───
   app.get('/api/rating', async () => {
     const attempts = await prisma.attempt.findMany({
-      select: {
-        employeeName: true,
-        passed: true,
-      },
+      select: { employeeName: true, passed: true },
     });
 
     const byName: Record<string, { attempts: number; passed: number }> = {};
