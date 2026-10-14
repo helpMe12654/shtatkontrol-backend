@@ -18,11 +18,13 @@ model User {
 
 model Question {
   id         String   @id @default(cuid())
+  number     Int     @unique
   text       String
   category   String?
   profession String   @default("general")
   createdAt  DateTime @default(now())
   options    Option[]
+  answers    AttemptAnswer[]
 }
 
 model Option {
@@ -42,5 +44,24 @@ model Attempt {
   passed       Boolean
   profession   String   @default("general")
   employeeName String   @default("Сотрудник")
+  telegramId   String?
   createdAt    DateTime @default(now())
+  answers      AttemptAnswer[]
+}
+
+model AttemptAnswer {
+  id               String   @id @default(cuid())
+  attemptId        String
+  attempt          Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question @relation(fields: [questionId], references: [id])
+  questionNumber   Int
+  questionText     String
+  selectedOptionId String?
+  selectedText     String?
+  correctOptionId  String?
+  correctText      String?
+  isCorrect        Boolean
+  order            Int
+  createdAt        DateTime @default(now())
 }
