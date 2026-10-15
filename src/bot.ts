@@ -38,7 +38,7 @@ export function startBot() {
           [
             {
               text: '📊 Мой результат',
-              web_app: { url: FRONTEND_URL },
+              web_app: { url: `${FRONTEND_URL}?screen=my-results` },
             },
           ],
           [
