@@ -2,6 +2,7 @@ import fastify from 'fastify';
 import cors from '@fastify/cors';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { startBot } from './bot';
 
 const app = fastify({ logger: true });
 const prisma = new PrismaClient();
@@ -14,6 +15,9 @@ const PROFESSIONS = ['general', 'официант', 'повар', 'бармен'
 
 async function start() {
   await app.register(cors, { origin: true });
+
+  // Запуск Telegram-бота
+  startBot();
 
   // ─── Вопросы (с перемешиванием) ───
   app.get('/api/questions', async (request: any) => {
