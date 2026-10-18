@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 
 // ⚠️ ЗАМЕНИ НА СВОЮ ПОСТОЯННУЮ ССЫЛКУ NETLIFY
-const FRONTEND_URL = 'https://shtatkontrol-app.netlify.app/';
+const FRONTEND_URL = 'https://shtatkontrol.vercel.app';
 
 export function startBot() {
   const BOT_TOKEN = process.env.BOT_TOKEN;
