@@ -201,7 +201,6 @@ async function start() {
       return reply.code(400).send({ error: 'Должен быть ровно 1 правильный ответ' });
     }
 
-    // Ищем максимальный номер
     const maxQ = await prisma.question.findFirst({
       orderBy: { number: 'desc' },
       select: { number: true },
@@ -296,7 +295,7 @@ async function start() {
     return { ok: true };
   });
 
-  // ─── Сохранить попытку (с ответами и telegramId) ───
+  // ─── Сохранить попытку ───
   app.post('/api/attempts', async (request: any, reply: any) => {
     const { score, total, profession, employeeName, telegramId, answers } = request.body as {
       score?: number;
@@ -339,11 +338,9 @@ async function start() {
       },
     });
 
-    // Сохраняем ответы (если пришли)
     if (answers && Array.isArray(answers)) {
       for (let i = 0; i < answers.length; i++) {
         const a = answers[i];
-        // Достаём номер и текст вопроса
         const question = await prisma.question.findUnique({
           where: { id: a.questionId },
           select: { number: true, text: true },
@@ -371,14 +368,18 @@ async function start() {
 
   // ─── Статистика ───
   app.get('/api/stats', async (request: any) => {
-    const { profession, employeeName } = request.query as {
+    const { profession, employeeName, source } = request.query as {
       profession?: string;
       employeeName?: string;
+      source?: string;
     };
 
     const where: any = {};
     if (profession && profession !== 'all') where.profession = profession;
     if (employeeName && employeeName !== 'all') where.employeeName = employeeName;
+    
+    if (source === 'telegram') where.telegramId = { not: null };
+    else if (source === 'browser') where.telegramId = null;
 
     const total = await prisma.attempt.count({ where });
     const passed = await prisma.attempt.count({
@@ -393,17 +394,21 @@ async function start() {
     };
   });
 
-  // ─── Все попытки ───
+  // ─── Все попытки (с фильтрами) ───
   app.get('/api/attempts', async (request: any) => {
-    const { profession, employeeName, limit } = request.query as {
+    const { profession, employeeName, source, limit } = request.query as {
       profession?: string;
       employeeName?: string;
+      source?: string;
       limit?: string;
     };
 
     const where: any = {};
     if (profession && profession !== 'all') where.profession = profession;
     if (employeeName && employeeName !== 'all') where.employeeName = employeeName;
+
+    if (source === 'telegram') where.telegramId = { not: null };
+    else if (source === 'browser') where.telegramId = null;
 
     const take = limit ? parseInt(limit, 10) : 50;
 
@@ -415,7 +420,7 @@ async function start() {
     });
   });
 
-  // ─── Детали попытки (с ответами) ───
+  // ─── Детали попытки ───
   app.get('/api/attempts/:id', async (request: any, reply: any) => {
     const { id } = request.params as { id: string };
 
@@ -423,9 +428,7 @@ async function start() {
       where: { id },
       include: {
         user: { select: { name: true, email: true } },
-        answers: {
-          orderBy: { order: 'asc' },
-        },
+        answers: { orderBy: { order: 'asc' } },
       },
     });
 
