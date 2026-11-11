@@ -1,6 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
 
-// ⚠️ ЗАМЕНИ НА СВОЮ ПОСТОЯННУЮ ССЫЛКУ NETLIFY
 const FRONTEND_URL = 'https://shtatkontrol.vercel.app';
 
 export function startBot() {
@@ -45,6 +44,12 @@ export function startBot() {
             {
               text: '📖 Памятка',
               web_app: { url: `${FRONTEND_URL}?screen=guide` },
+            },
+          ],
+          [
+            {
+              text: '⭐ Оставить отзыв',
+              web_app: { url: `${FRONTEND_URL}?screen=review` },
             },
           ],
         ],

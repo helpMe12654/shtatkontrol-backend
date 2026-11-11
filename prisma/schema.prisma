@@ -65,3 +65,12 @@ model AttemptAnswer {
   order            Int
   createdAt        DateTime @default(now())
 }
+
+model Review {
+  id           String   @id @default(cuid())
+  rating       Int
+  text         String?
+  employeeName String
+  telegramId   String?  @unique
+  createdAt    DateTime @default(now())
+}

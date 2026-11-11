@@ -9,6 +9,7 @@ const prisma = new PrismaClient();
 
 const MANAGER_PASSWORD = '11111';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '22222';
+const ADMIN_TELEGRAM_ID = 1226663482;
 
 const CATEGORIES = ['Сервис', 'Санитария', 'Безопасность', 'Стандарты', 'Культура'];
 const PROFESSIONS = ['general', 'официант', 'повар', 'бармен', 'хостес', 'курьер', 'управляющий'];
@@ -19,6 +20,64 @@ async function start() {
   // Запуск Telegram-бота
   startBot();
 
+
+    // ─── Отзывы ───
+    app.post('/api/reviews', async (request: any, reply: any) => {
+      const { rating, text, employeeName, telegramId } = request.body as {
+        rating?: number;
+        text?: string;
+        employeeName?: string;
+        telegramId?: string | null;
+      };
+  
+      if (!rating || rating < 1 || rating > 5) {
+        return reply.code(400).send({ error: 'Оценка от 1 до 5 обязательна' });
+      }
+      if (!employeeName) {
+        return reply.code(400).send({ error: 'Имя обязательно' });
+      }
+  
+      const tid = telegramId || null;
+      const existing = tid ? await prisma.review.findUnique({ where: { telegramId: tid } }) : null;
+  
+      let review;
+      if (existing) {
+        review = await prisma.review.update({
+          where: { id: existing.id },
+          data: { rating, text: text || null, employeeName },
+        });
+      } else {
+        review = await prisma.review.create({
+          data: { rating, text: text || null, employeeName, telegramId: tid },
+        });
+      }
+  
+      // Уведомление в Telegram
+      if (process.env.BOT_TOKEN) {
+        const TelegramBot = require('node-telegram-bot-api');
+        const tempBot = new TelegramBot(process.env.BOT_TOKEN);
+        const action = existing ? 'Обновлён отзыв' : 'Новый отзыв';
+        const stars = '⭐'.repeat(rating);
+        const msg = `${action}!\n\n👤 ${employeeName}\n${stars}\n\n${text || '(без текста)'}`;
+        
+        tempBot.sendMessage(ADMIN_TELEGRAM_ID, msg).catch(() => {});
+      }
+  
+      return review;
+    });
+  
+    app.get('/api/reviews', async () => {
+      return prisma.review.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+  
+    app.delete('/api/reviews/:id', async (request: any) => {
+      const { id } = request.params as { id: string };
+      await prisma.review.delete({ where: { id } });
+      return { ok: true };
+    });
+    
   // ─── Вопросы (с перемешиванием) ───
   app.get('/api/questions', async (request: any) => {
     const { profession, count } = request.query as {
