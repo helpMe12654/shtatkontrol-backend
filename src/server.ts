@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 
 const MANAGER_PASSWORD = '11111';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '22222';
-const ADMIN_TELEGRAM_ID = 1226663482;
+const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || '1226663482';
 
 const CATEGORIES = ['Сервис', 'Санитария', 'Безопасность', 'Стандарты', 'Культура'];
 const PROFESSIONS = ['general', 'официант', 'повар', 'бармен', 'хостес', 'курьер', 'управляющий'];
